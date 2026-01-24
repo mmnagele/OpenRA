@@ -577,7 +577,7 @@ TSLA:
 		Bounds: 1024, 1024
 		DecorationBounds: 1024, 1706, 0, -341
 	Health:
-		HP: 40000
+		HP: 200000
 	Armor:
 		Type: Heavy
 	RevealsShroud:
@@ -596,9 +596,11 @@ TSLA:
 		PauseOnCondition: disabled || build-incomplete
 		ChargeAudio: tslachg2.aud
 		MaxCharges: 3
-		ReloadDelay: 120
+		ReloadDelay: 24
+		InitialChargeDelay: 4
+		ChargeDelay: 1
 	Power:
-		Amount: -80
+		Amount: 80
 	DetectCloaked:
 		Range: 6c0
 		RequiresCondition: !disabled
@@ -1364,7 +1366,7 @@ SILO:
 	-GivesBuildableArea:
 	-MustBeDestroyed:
 	Health:
-		HP: 30000
+		HP: 300000
 	Armor:
 		Type: Wood
 	RevealsShroud:
@@ -1382,7 +1384,7 @@ SILO:
 	WithResourceLevelSpriteBody:
 		Sequence: stages
 	StoresPlayerResources:
-		Capacity: 3000
+		Capacity: 300000
 	-SpawnActorsOnSell:
 	Power:
 		Amount: -10

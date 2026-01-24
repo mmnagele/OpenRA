@@ -91,6 +91,8 @@ Napalm:
 
 TeslaZap:
 	Inherits: ^TeslaWeapon
+	ReloadDelay: 1
+	Range: 35c0
 	Warhead@1Dam: SpreadDamage
 		Versus:
 			Wood: 60

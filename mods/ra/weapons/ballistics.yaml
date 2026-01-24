@@ -68,7 +68,8 @@
 
 120mm:
 	Inherits: ^Cannon
-	ReloadDelay: 90
+	ReloadDelay: 18
+	Range: 19c0
 	Burst: 2
 	InvalidTargets: Air, Infantry
 	Warhead@1Dam: SpreadDamage

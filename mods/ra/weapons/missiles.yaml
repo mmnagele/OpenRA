@@ -113,14 +113,14 @@ HellfireAA:
 
 MammothTusk:
 	Inherits: ^AntiGroundMissile
-	ReloadDelay: 60
-	Range: 6c512
+	ReloadDelay: 12
+	Range: 26c0
 	Burst: 2
 	ValidTargets: AirborneActor, Infantry
 	Projectile: Missile
 		Speed: 341
 		HorizontalRateOfTurn: 60
-		RangeLimit: 9c614
+		RangeLimit: 38c408
 	Warhead@1Dam: SpreadDamage
 		ValidTargets: AirborneActor, Infantry
 		Spread: 256

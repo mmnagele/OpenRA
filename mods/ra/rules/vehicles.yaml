@@ -204,7 +204,7 @@ V2RL:
 		Prerequisites: fix, stek, ~vehicles.soviet, ~techlevel.high
 		Description: actor-4tnk.description
 	Valued:
-		Cost: 2000
+		Cost: 200
 	Tooltip:
 		Name: actor-4tnk.name
 		GenericName: actor-4tnk.generic-name
@@ -215,7 +215,7 @@ V2RL:
 	Armor:
 		Type: Heavy
 	Mobile:
-		Speed: 43
+		Speed: 172
 		Locomotor: heavytracked
 	RevealsShroud:
 		MinRange: 4c0
