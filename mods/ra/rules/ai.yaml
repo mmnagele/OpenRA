@@ -11,6 +11,9 @@ Player:
 	ModularBot@NavalAI:
 		Name: bot-naval-ai.name
 		Type: naval
+	ModularBot@StrongAI:
+		Name: bot-strong-ai.name
+		Type: strong
 	GrantConditionOnBotOwner@rush:
 		Condition: enable-rush-ai
 		Bots: rush
@@ -23,8 +26,20 @@ Player:
 	GrantConditionOnBotOwner@naval:
 		Condition: enable-naval-ai
 		Bots: naval
+	GrantConditionOnBotOwner@strong:
+		Condition: enable-strong-ai
+		Bots: strong
+	ProvidesPrerequisite@strong:
+		RequiresCondition: enable-strong-ai
+		Prerequisite: ai-strong
+	CashTrickler@strong:
+		RequiresCondition: enable-strong-ai
+		Interval: 25
+		Amount: 750
+		InitialDelay: 0
+		ShowTicks: false
 	ResourceMapBotModule:
-		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-strong-ai
 		ResourceCreatorTypes: mine, gmine
 		ValuableResourceTypes: Ore, Gems
 		HarvesterTypes: harv
@@ -81,6 +96,57 @@ Player:
 					Attractiveness: -10
 					TargetMetric: Value
 					CheckRadius: 7c0
+	SupportPowerBotModule@strong:
+		RequiresCondition: enable-strong-ai
+		Decisions:
+			spyplane:
+				OrderName: SovietSpyPlane
+				MinimumAttractiveness: 1
+				Consideration@1:
+					Against: Enemy
+					Types: Structure
+					Attractiveness: 1
+					TargetMetric: None
+					CheckRadius: 6c0
+			paratroopers:
+				OrderName: SovietParatroopers
+				MinimumAttractiveness: 3
+				Consideration@1:
+					Against: Enemy
+					Types: Structure
+					Attractiveness: 1
+					TargetMetric: None
+					CheckRadius: 10c0
+				Consideration@2:
+					Against: Enemy
+					Types: Water
+					Attractiveness: -5
+					TargetMetric: None
+					CheckRadius: 10c0
+			parabombs:
+				OrderName: UkraineParabombs
+				MinimumAttractiveness: 1
+				Consideration@1:
+					Against: Enemy
+					Types: Structure
+					Attractiveness: 1
+					TargetMetric: None
+					CheckRadius: 6c0
+			nukepower:
+				OrderName: NukePowerInfoOrder
+				MinimumAttractiveness: 2000
+				Consideration@1:
+					Against: Enemy
+					Types: Structure
+					Attractiveness: 1
+					TargetMetric: Value
+					CheckRadius: 6c0
+				Consideration@2:
+					Against: Ally
+					Types: Air, Ground, Water
+					Attractiveness: -10
+					TargetMetric: Value
+					CheckRadius: 8c0
 	HarvesterBotModule@rush-naval:
 		RequiresCondition: enable-rush-ai || enable-naval-ai
 		HarvesterTypes: harv
@@ -91,6 +157,14 @@ Player:
 		HarvesterTypes: harv
 		RefineryTypes: proc
 		InitialHarvesters: 4
+	HarvesterBotModule@strong:
+		RequiresCondition: enable-strong-ai
+		HarvesterTypes: harv
+		RefineryTypes: proc
+		InitialHarvesters: 12
+		ResourceCellsPerHarvester: 2
+		ScanForIdleHarvestersInterval: 25
+		ScanForLowEffectHarvestersInterval: 250
 	BaseBuilderBotModule@rush:
 		RequiresCondition: enable-rush-ai
 		MinimumExcessPower: 0
@@ -272,6 +346,114 @@ Player:
 			atek: 7000
 			stek: 7000
 			kenn: 8000
+	BaseBuilderBotModule@strong:
+		RequiresCondition: enable-strong-ai
+		MinimumExcessPower: 120
+		MaximumExcessPower: 2400
+		ExcessPowerIncrement: 160
+		ExcessPowerIncreaseThreshold: 2
+		# Must not exceed the engine MaximumTileSearchRange (commonly 50), otherwise the AI can crash on some maps.
+		MaxBaseRadius: 50
+		ConstructionYardTypes: fact
+		RefineryTypes: proc
+		PowerTypes: powr,apwr
+		InititalMinimumRefineryCount: 0
+		AdditionalMinimumRefineryCount: 2
+		MaxRefineryPerIndice: 6
+		TechTypes: dome, atek, stek, fix, afld, hpad, spen, syrd, mslo, pdox, iron, gap
+		ProductionTypes: barr,tent,weap,afld,hpad
+		NavalProductionTypes: spen, syrd
+		NewProductionCashThreshold: 0
+		SiloTypes: silo
+		DefenseTypes: hbox,pbox,gun,ftur,tsla,agun,sam,gap
+		ProductionMinCashRequirement: 0
+		PreferAlliedBuildCenters: true
+		PerExpansionTolerateOnCash: 1000000
+		ExpansionTolerate: 0
+		ForceExpansionTolerate: 0
+		BuildingLimits:
+			powr: 250
+			apwr: 200
+			proc: 30
+			silo: 50
+			barr: 30
+			tent: 30
+			kenn: 10
+			dome: 10
+			weap: 30
+			spen: 10
+			syrd: 10
+			hpad: 30
+			afld: 30
+			afld.ukraine: 30
+			gap: 25
+			atek: 10
+			stek: 10
+			fix: 10
+			pdox: 5
+			iron: 5
+			mslo: 1
+			hbox: 500
+			pbox: 500
+			gun: 500
+			ftur: 500
+			tsla: 350
+			agun: 350
+			sam: 350
+		MinimumBuildings:
+			weap: 1
+			dome: 1
+			atek: 1
+			stek: 1
+			fix: 1
+		BuildingFractions:
+			powr: 10
+			apwr: 10
+			proc: 20
+			silo: 10
+			barr: 10
+			tent: 10
+			kenn: 5
+			weap: 15
+			spen: 10
+			syrd: 10
+			hpad: 15
+			afld: 15
+			afld.ukraine: 15
+			gap: 25
+			fix: 10
+			dome: 10
+			atek: 5
+			stek: 5
+			pdox: 2
+			iron: 2
+			hbox: 80
+			pbox: 80
+			gun: 80
+			ftur: 80
+			tsla: 60
+			agun: 60
+			sam: 60
+			mslo: 1
+		BuildingDelays:
+			dome: 0
+			fix: 0
+			pbox: 500
+			hbox: 500
+			gun: 800
+			ftur: 800
+			tsla: 1500
+			agun: 1500
+			sam: 1500
+			gap: 8000
+			kenn: 6000
+			spen: 7000
+			syrd: 7000
+			atek: 7000
+			stek: 7000
+			pdox: 12000
+			iron: 12000
+			mslo: 13500
 	BaseBuilderBotModule@naval:
 		RequiresCondition: enable-naval-ai
 		MinimumExcessPower: 0
@@ -328,10 +510,10 @@ Player:
 			tsla: 21000
 			kenn: 4000
 	PowerDownBotModule:
-		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai || enable-strong-ai
 		PowerDownTypes: dome,tsla,mslo,agun,sam
 	BuildingRepairBotModule:
-		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai || enable-strong-ai
 	SquadManagerBotModule@rush:
 		RequiresCondition: enable-rush-ai
 		SquadSize: 20
@@ -368,6 +550,22 @@ Player:
 		MoveOldConyardFirst: false
 		MoveConyardTick: 8000
 		MinimumConstructionYardCount: 2
+	McvExpansionManagerBotModule@strong:
+		RequiresCondition: enable-strong-ai
+		McvTypes: mcv
+		ConstructionYardTypes: fact
+		McvFactoryTypes: weap
+		MinimumConstructionYardCount: 4
+		AdditionalConstructionYardCount: 4
+		BuildAdditionalMCVCashAmount: 15000
+		MoveOldConyardFirst: false
+		MoveConyardTick: 3000
+		ScanForNewMcvInterval: 10
+		BuildMcvInterval: 50
+		AllowMultipleActiveMcvs: true
+		NeverUndeployConyards: true
+		CRmodeMaxDeployRadius: 40
+		CBmodeMaxDeployRadius: 40
 	UnitBuilderBotModule@rush:
 		RequiresCondition: enable-rush-ai
 		UnitsToBuild:
@@ -395,6 +593,11 @@ Player:
 			harv: 8
 			jeep: 4
 			ftrk: 4
+	CaptureManagerBotModule@strong:
+		RequiresCondition: enable-strong-ai
+		CapturingActorTypes: e6
+		MinimumCaptureDelay: 250
+		MaximumCaptureTargetOptions: 20
 	SquadManagerBotModule@normal:
 		RequiresCondition: enable-normal-ai
 		SquadSize: 40
@@ -504,6 +707,13 @@ Player:
 		UseEnemyLocationTargetTypes: Structure, Defense, AirborneActor
 		AwayFromAlliedTargetTypes: Structure, Defense
 		AwayFromEnemyTargetTypes: Structure, Defense
+	MinelayerBotModule@strong:
+		RequiresCondition: enable-strong-ai
+		MinelayingActorTypes: mnly
+		IgnoredEnemyTargetTypes: Structure, Defense, AirborneActor
+		UseEnemyLocationTargetTypes: Structure, Defense, AirborneActor
+		AwayFromAlliedTargetTypes: Structure, Defense
+		AwayFromEnemyTargetTypes: Structure, Defense
 	SquadManagerBotModule@naval:
 		RequiresCondition: enable-naval-ai
 		SquadSize: 1
@@ -540,3 +750,64 @@ Player:
 			jeep: 1
 		UnitDelays:
 			harv: 10000
+	SquadManagerBotModule@strong:
+		RequiresCondition: enable-strong-ai
+		SquadSize: 35
+		SquadSizeRandomBonus: 40
+		RushInterval: 350
+		AttackForceInterval: 60
+		MinimumAttackForceDelay: 50
+		NavalUnitsTypes: ss, msub, dd, ca, lst, pt
+		ExcludeFromSquadsTypes: harv, mcv, dog, badr.bomber, u2, mnly, e6
+		ConstructionYardTypes: fact
+		NavalProductionTypes: spen, syrd
+		AirUnitsTypes: mig, yak, heli, hind, mh60
+		AircraftTargetType: AirborneActor
+		ProtectionTypes: harv, mcv, mslo, gap, spen, syrd, iron, pdox, tsla, agun, dome, pbox, hbox, gun, ftur, sam, atek, weap, fact, proc, silo, hpad, afld, afld.ukraine, powr, apwr, stek, barr, kenn, tent, fix, fpwr, tenf, syrf, spef, weaf, domf, fixf, fapw, atef, pdof, mslf, facf
+		IgnoredEnemyTargetTypes: AirborneActor
+		ProtectUnitScanRadius: 35
+		ProtectionScanRadius: 20
+	UnitBuilderBotModule@strong:
+		RequiresCondition: enable-strong-ai
+		ProductionMinCashRequirement: 0
+		UnitsToBuild:
+			e1: 60
+			e2: 25
+			e3: 35
+			e4: 25
+			e6: 8
+			e7: 2
+			dog: 20
+			shok: 25
+			harv: 25
+			apc: 35
+			jeep: 25
+			arty: 25
+			v2rl: 45
+			ftrk: 45
+			1tnk: 40
+			2tnk: 60
+			3tnk: 60
+			4tnk: 45
+			ttnk: 35
+			stnk: 20
+			heli: 40
+			mh60: 40
+			mig: 40
+			yak: 50
+			ss: 20
+			msub: 20
+			dd: 25
+			ca: 25
+			pt: 20
+			mnly: 6
+		UnitLimits:
+			dog: 8
+			e6: 6
+			harv: 12
+			jeep: 8
+			ftrk: 8
+			mnly: 4
+		UnitDelays:
+			harv: 0
+			mnly: 3000

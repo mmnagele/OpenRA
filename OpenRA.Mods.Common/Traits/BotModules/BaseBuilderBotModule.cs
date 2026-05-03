@@ -129,6 +129,10 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("What buildings to the AI should build.", "What integer percentage of the total base must be this type of building.")]
 		public readonly FrozenDictionary<string, int> BuildingFractions = null;
 
+		[Desc("Minimum number of buildings the AI should build for each actor type.",
+			"These are treated as priority overrides: if the current number is below the minimum then the AI will attempt to build the actor before using BuildingFractions.")]
+		public readonly FrozenDictionary<string, int> MinimumBuildings = null;
+
 		[Desc("What buildings should the AI have a maximum limit to build.")]
 		public readonly FrozenDictionary<string, int> BuildingLimits = null;
 
@@ -164,6 +168,10 @@ namespace OpenRA.Mods.Common.Traits
 
 		[Desc("Decrease the expansion tolerate by Cash / this. Used to prevent AI from expanding when it has enough cash.")]
 		public readonly int PerExpansionTolerateOnCash = 12000;
+
+		[Desc("If enabled and ally build radius is enabled, the bot may choose allied construction yards as build centers.",
+			"Useful for spreading structures across the map in team games.")]
+		public readonly bool PreferAlliedBuildCenters = false;
 
 		public override object Create(ActorInitializer init) { return new BaseBuilderBotModule(init.Self, this); }
 	}

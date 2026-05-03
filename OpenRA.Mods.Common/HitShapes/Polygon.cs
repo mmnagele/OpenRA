@@ -59,11 +59,13 @@ namespace OpenRA.Mods.Common.HitShapes
 				squares[i] = (Points[i] - Points[i - 1]).LengthSquared;
 		}
 
-		static int DistanceSquaredFromLineSegment(int2 c, int2 a, int2 b, int ab2)
+		static long DistanceSquaredFromLineSegment(int2 c, int2 a, int2 b, int ab2)
 		{
 			var ac = c - a;
-			var ac2 = ac.LengthSquared;
-			var bc2 = (c - b).LengthSquared;
+			var ac2 = (long)ac.X * ac.X + (long)ac.Y * ac.Y;
+
+			var bc = c - b;
+			var bc2 = (long)bc.X * bc.X + (long)bc.Y * bc.Y;
 
 			// c is closest to point a
 			if (ac2 + ab2 <= bc2)
@@ -76,11 +78,12 @@ namespace OpenRA.Mods.Common.HitShapes
 			// c is closest to its unknown orthogonal projection (p) onto the line spanned by b with a as the origin
 			// Cast to a long for the calculations to avoid overflows
 			var ab = b - a;
-			var ap2 = ac.X * ab.X + ac.Y * ab.Y;
+			var ap2 = (long)ac.X * ab.X + (long)ac.Y * ab.Y;
 			var ap = new int2((int)((long)ab.X * ap2 / ab2), (int)((long)ab.Y * ap2 / ab2));
 
 			// Length of vector pc squared.
-			return (ac - ap).LengthSquared;
+			var pc = ac - ap;
+			return (long)pc.X * pc.X + (long)pc.Y * pc.Y;
 		}
 
 		public WDist DistanceFromEdge(in WVec v)
@@ -98,7 +101,9 @@ namespace OpenRA.Mods.Common.HitShapes
 					min2 = d2;
 			}
 
-			return new WDist(Exts.ISqrt(min2 + z * z));
+			var z2 = (long)z * z;
+			var distance = Exts.ISqrt(min2 + z2);
+			return distance >= int.MaxValue ? WDist.MaxValue : new WDist((int)distance);
 		}
 
 		public WDist DistanceFromEdge(WPos pos, WPos origin, WRot orientation)

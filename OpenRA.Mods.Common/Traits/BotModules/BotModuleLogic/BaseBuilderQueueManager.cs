@@ -323,6 +323,60 @@ namespace OpenRA.Mods.Common.Traits
 				}
 			}
 
+			// Enforce minimum building counts
+			if (baseBuilder.Info.MinimumBuildings != null)
+			{
+				foreach (var min in baseBuilder.Info.MinimumBuildings.Shuffle(world.LocalRandom))
+				{
+					var name = min.Key;
+					var minimum = min.Value;
+
+					if (minimum <= 0)
+						continue;
+
+					// Does this building have initial delay, if so have we passed it?
+					if (baseBuilder.Info.BuildingDelays != null &&
+						baseBuilder.Info.BuildingDelays.TryGetValue(name, out var delay) &&
+						delay > world.WorldTick)
+						continue;
+
+					// Can we build this structure?
+					if (!buildableThings.Any(b => b.Name == name))
+						continue;
+
+					// Check the number of this structure and its variants
+					var actorInfo = world.Map.Rules.Actors[name];
+					var buildingVariantInfo = actorInfo.TraitInfoOrDefault<PlaceBuildingVariantsInfo>();
+					var variants = buildingVariantInfo?.Actors ?? [];
+
+					var count = playerBuildings.Count(a =>
+						a.Info.Name == name || variants.Contains(a.Info.Name)) +
+						(baseBuilder.BuildingsBeingProduced.TryGetValue(name, out var num) ? num : 0);
+
+					if (count >= minimum)
+						continue;
+
+					// Will this put us into low power?
+					if (playerPower != null && (playerPower.ExcessPower < minimumExcessPower || !HasSufficientPowerForActor(actorInfo)))
+					{
+						// Try building a power plant instead
+						if (power != null && power.TraitInfos<PowerInfo>().Where(i => i.EnabledByDefault).Sum(pi => pi.Amount) > 0)
+						{
+							if (playerPower.PowerOutageRemainingTicks > 0)
+								AIUtils.BotDebug("{0} decided to build {1}: Priority override (is low power)", queue.Actor.Owner, power.Name);
+							else
+								AIUtils.BotDebug("{0} decided to build {1}: Priority override (would be low power)", queue.Actor.Owner, power.Name);
+
+							return power;
+						}
+					}
+
+					AIUtils.BotDebug("{0} decided to build {1}: Priority override (minimum buildings: {2} / {3})",
+						queue.Actor.Owner, name, count, minimum);
+					return actorInfo;
+				}
+			}
+
 			// Make sure that we can spend as fast as we are earning
 			if (baseBuilder.Info.NewProductionCashThreshold > 0 && playerResources.GetCashAndResources() > baseBuilder.Info.NewProductionCashThreshold
 				&& world.LocalRandom.Next(100) < baseBuilder.Info.NewProductionChance)
@@ -596,8 +650,45 @@ namespace OpenRA.Mods.Common.Traits
 					return FindPos(baseCenter, baseCenter, baseBuilder.Info.MinBaseRadius, baseBuilder.Info.MaxBaseRadius);
 
 				case BuildingType.Building:
-					return FindPos(baseCenter, baseCenter, baseBuilder.Info.MinBaseRadius,
+					var buildCenter = baseCenter;
+
+					if (baseBuilder.Info.PreferAlliedBuildCenters)
+					{
+						var mapBuildRadius = world.WorldActor.TraitOrDefault<MapBuildRadius>();
+						if (mapBuildRadius != null && mapBuildRadius.BuildRadiusEnabled && mapBuildRadius.AllyBuildRadiusEnabled)
+						{
+							var alliedConyards = world.ActorsHavingTrait<Building>()
+								.Where(a => !a.IsDead && a.Owner != player && player.RelationshipWith(a.Owner) == PlayerRelationship.Ally
+									&& baseBuilder.Info.ConstructionYardTypes.Contains(a.Info.Name))
+								.ToArray();
+
+							if (alliedConyards.Length > 0)
+							{
+								var ownBuildings = playerBuildings.Where(a => !a.IsDead).ToArray();
+
+								if (ownBuildings.Length > 0)
+								{
+									var ranked = alliedConyards
+										.Select(a => (Location: a.Location, Score: ownBuildings.Min(b => (a.Location - b.Location).LengthSquared)))
+										.OrderByDescending(a => a.Score)
+										.Take(3)
+										.ToArray();
+
+									buildCenter = ranked.Random(world.LocalRandom).Location;
+								}
+								else
+									buildCenter = alliedConyards.Random(world.LocalRandom).Location;
+							}
+						}
+					}
+
+					var preferred = FindPos(buildCenter, buildCenter, baseBuilder.Info.MinBaseRadius,
 						distanceToBaseIsImportant ? baseBuilder.Info.MaxBaseRadius : world.Map.Grid.MaximumTileSearchRange);
+
+					return preferred.Location != null || buildCenter == baseCenter
+						? preferred
+						: FindPos(baseCenter, baseCenter, baseBuilder.Info.MinBaseRadius,
+							distanceToBaseIsImportant ? baseBuilder.Info.MaxBaseRadius : world.Map.Grid.MaximumTileSearchRange);
 			}
 
 			// Can't find a build location

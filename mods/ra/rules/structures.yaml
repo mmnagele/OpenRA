@@ -11,7 +11,7 @@ MSLO:
 	Buildable:
 		Queue: Defense
 		BuildPaletteOrder: 140
-		Prerequisites: techcenter, ~techlevel.unrestricted
+		Prerequisites: stek, ~structures.soviet, ~techlevel.unrestricted
 		BuildLimit: 1
 		Description: actor-mslo.description
 	Building:
@@ -36,7 +36,7 @@ MSLO:
 		PauseOnCondition: disabled
 		Cursor: nuke
 		Icon: abomb
-		ChargeInterval: 13500
+		ChargeInterval: 75
 		Name: actor-mslo.nukepower-name
 		Description: actor-mslo.nukepower-description
 		BeginChargeSpeechNotification: AbombPrepping
@@ -85,7 +85,7 @@ GAP:
 	Buildable:
 		Queue: Defense
 		BuildPaletteOrder: 110
-		Prerequisites: atek, ~structures.allies, ~techlevel.high
+		Prerequisites: stek, ~structures.soviet, ~techlevel.high
 		Description: actor-gap.description
 	Selectable:
 		Bounds: 1024, 1024
@@ -432,10 +432,10 @@ IRON:
 	GrantExternalConditionPower@IRONCURTAIN:
 		PauseOnCondition: disabled
 		Icon: invuln
-		ChargeInterval: 3000
+		ChargeInterval: 75
 		Name: actor-iron.grantexternalconditionpower-ironcurtain-name
 		Description: actor-iron.grantexternalconditionpower-ironcurtain-description
-		Duration: 400
+		Duration: 2160000
 		SelectTargetSpeechNotification: SelectTarget
 		InsufficientPowerSpeechNotification: InsufficientPower
 		BeginChargeSpeechNotification: IronCurtainCharging

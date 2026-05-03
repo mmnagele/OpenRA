@@ -119,6 +119,10 @@ namespace OpenRA.Test
 			Assert.That(shape.DistanceFromEdge(new WVec(-1000, -400, 0)).Length,
 				Is.EqualTo(877));
 
+			// Regression test: squared distance must not overflow for large coordinates.
+			Assert.That(shape.DistanceFromEdge(new WVec(50000, 0, 0)).Length,
+				Is.EqualTo(49900));
+
 			// Rectangle like above but reverse order
 			// Note: The calculations don't match for all, but do have a tolerance of 1.
 			shape = new PolygonShape([new(-123, 100), new(100, 100), new(100, -456), new(-123, -456)]);

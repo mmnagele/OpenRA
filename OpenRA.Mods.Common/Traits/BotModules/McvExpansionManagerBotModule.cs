@@ -53,6 +53,13 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Should moving the oldest or newest conyard be preferred? Random ordering if unset.")]
 		public readonly bool? MoveOldConyardFirst = null;
 
+		[Desc("Allow multiple active MCVs (and queued MCV production) to reach the desired construction yard count faster.")]
+		public readonly bool AllowMultipleActiveMcvs = false;
+
+		[Desc("If enabled, the bot will never undeploy existing construction yards (packing into an MCV).",
+			"Useful to avoid losing the last conyard or causing 'roaming conyard' failure modes.")]
+		public readonly bool NeverUndeployConyards = false;
+
 		[Desc("Initial expansion mode chosen by AI.")]
 		public readonly BotMcvExpansionMode InitialExpansionMode = BotMcvExpansionMode.CheckResource;
 
@@ -111,6 +118,7 @@ namespace OpenRA.Mods.Common.Traits
 		IBotSuggestRefineryProduction[] suggestRefineryProduction;
 
 		readonly Dictionary<Actor, CPos?> activeMCVs = [];
+		readonly Dictionary<Actor, CPos> mcvDeployLocations = [];
 
 		PathFinder pathfinder;
 		ResourceMapBotModule resourceMapModule;
@@ -517,6 +525,22 @@ namespace OpenRA.Mods.Common.Traits
 							((indiceEnemyBaseThreat * indiceSideLengthSquare + nearbyEnemyBaseThreat * indiceSideLengthSquare / indiceCount) << 3);
 		}
 
+		void CleanupMcvTracking()
+		{
+			foreach (var amcv in activeMCVs.Keys.ToList())
+			{
+				if (amcv.IsDead || !amcv.IsInWorld)
+				{
+					activeMCVs.Remove(amcv);
+					mcvDeployLocations.Remove(amcv);
+				}
+			}
+
+			foreach (var amcv in mcvDeployLocations.Keys.ToList())
+				if (amcv.IsDead || !amcv.IsInWorld)
+					mcvDeployLocations.Remove(amcv);
+		}
+
 		void IBotTick.BotTick(IBot bot)
 		{
 			attackrespondcooldown--;
@@ -535,12 +559,7 @@ namespace OpenRA.Mods.Common.Traits
 
 			if (--scanInterval <= 0)
 			{
-				foreach (var amcv in activeMCVs.Keys.ToList())
-				{
-					if (amcv.IsDead || !amcv.IsInWorld)
-						activeMCVs.Remove(amcv);
-				}
-
+				CleanupMcvTracking();
 				scanInterval = Info.ScanForNewMcvInterval;
 				DeployMcvs(bot, true);
 			}
@@ -553,12 +572,7 @@ namespace OpenRA.Mods.Common.Traits
 
 			if (--moveConyardInterval <= 0)
 			{
-				foreach (var amcv in activeMCVs.Keys.ToList())
-				{
-					if (amcv.IsDead || !amcv.IsInWorld)
-						activeMCVs.Remove(amcv);
-				}
-
+				CleanupMcvTracking();
 				moveConyardInterval = Info.MoveConyardTick;
 				UnDeployConyard(bot);
 			}
@@ -566,10 +580,9 @@ namespace OpenRA.Mods.Common.Traits
 
 		void BuildMCV(IBot bot)
 		{
-			if (Info.McvTypes.Count <= 0)
+			if (!CanBuildMcvNow())
 				return;
-			if (AIUtils.CountActorByCommonName(mcvFactories) <= 0)
-				return;
+
 			var mcvNum = AIUtils.CountActorByCommonName(mcvs);
 			var conyardNum = AIUtils.CountActorByCommonName(constructionYards);
 
@@ -578,7 +591,7 @@ namespace OpenRA.Mods.Common.Traits
 
 			// If we only have 1 MCV and no conyard, we should be allowed to build another MCV.
 			// Otherwise, when an mcv is on the move and we should wait.
-			if ((conyardNum <= 0 && mcvNum > 1) || (conyardNum > 0 && mcvNum > 0))
+			if (!Info.AllowMultipleActiveMcvs && ((conyardNum <= 0 && mcvNum > 1) || (conyardNum > 0 && mcvNum > 0)))
 				return;
 
 			if (conyardNum + mcvNum >= mcvShouldHave)
@@ -593,14 +606,76 @@ namespace OpenRA.Mods.Common.Traits
 			if (player.PlayerActor.TraitsImplementing<ProductionQueue>()
 				.Any(t => t.Enabled && t.AllQueued().Any(q => Info.McvTypes.Contains(q.Item))))
 				return;
+
 			var unitBuilder = requestUnitProduction.FirstEnabledTraitOrDefault();
 			if (unitBuilder == null)
 				return;
-			var mcvType = Info.McvTypes.Random(world.LocalRandom);
+
+			var buildableMcvs = new HashSet<string>();
+
+			foreach (var factory in mcvFactories.Actors)
+			{
+				if (factory.IsDead)
+					continue;
+
+				foreach (var q in factory.TraitsImplementing<ProductionQueue>())
+				{
+					if (!q.Enabled)
+						continue;
+
+					foreach (var i in q.BuildableItems())
+					{
+						if (Info.McvTypes.Contains(i.Name))
+							buildableMcvs.Add(i.Name);
+					}
+				}
+			}
+
+			foreach (var q in player.PlayerActor.TraitsImplementing<ProductionQueue>())
+			{
+				if (!q.Enabled)
+					continue;
+
+				foreach (var i in q.BuildableItems())
+				{
+					if (Info.McvTypes.Contains(i.Name))
+						buildableMcvs.Add(i.Name);
+				}
+			}
+
+			if (buildableMcvs.Count <= 0)
+				return;
+
+			var mcvType = buildableMcvs.ToArray().Random(world.LocalRandom);
 
 			// Make sure we only request one MCV at a time.
 			if (unitBuilder.RequestedProductionCount(bot, mcvType) <= 0)
 				unitBuilder.RequestUnitProduction(bot, mcvType);
+		}
+
+		bool CanBuildMcvNow()
+		{
+			if (Info.McvTypes.Count <= 0)
+				return false;
+
+			// If we have no production building then we can't build an MCV right now.
+			if (AIUtils.CountActorByCommonName(mcvFactories) <= 0)
+				return false;
+
+			// Prefer checking the explicit MCV factories first.
+			foreach (var factory in mcvFactories.Actors)
+			{
+				if (factory.IsDead)
+					continue;
+
+				if (factory.TraitsImplementing<ProductionQueue>()
+					.Any(t => t.Enabled && t.BuildableItems().Any(i => Info.McvTypes.Contains(i.Name))))
+					return true;
+			}
+
+			// Some mods can use global queues on the Player actor.
+			return player.PlayerActor.TraitsImplementing<ProductionQueue>()
+				.Any(t => t.Enabled && t.BuildableItems().Any(i => Info.McvTypes.Contains(i.Name)));
 		}
 
 		void DeployMcvs(IBot bot, bool chooseLocation)
@@ -614,8 +689,41 @@ namespace OpenRA.Mods.Common.Traits
 
 		void UnDeployConyard(IBot bot)
 		{
+			if (Info.NeverUndeployConyards)
+			{
+				// Treat any undeploy requests as an expansion nudge: build an MCV instead of packing conyards.
+				if (mustUndeployCoyard != null || undeployEvenNoBase)
+				{
+					if (CanBuildMcvNow())
+					{
+						BuildMCV(bot);
+						buildMCVInterval = 1;
+					}
+
+					undeployEvenNoBase = false;
+					mustUndeployCoyard = null;
+				}
+
+				return;
+			}
+
 			if (mustUndeployCoyard != null && mustUndeployCoyard.IsInWorld && !mustUndeployCoyard.IsDead && mustUndeployCoyard.Owner == player)
 			{
+				// Never undeploy the last conyard: it's too risky and can permanently kill the bot's ability to build.
+				// If we need more bases, prefer building additional MCVs instead.
+				if (AIUtils.CountActorByCommonName(constructionYards) <= 1)
+				{
+					if (CanBuildMcvNow())
+					{
+						BuildMCV(bot);
+						buildMCVInterval = 1;
+					}
+
+					undeployEvenNoBase = false;
+					mustUndeployCoyard = null;
+					return;
+				}
+
 				bot.QueueOrder(new Order("DeployTransform", mustUndeployCoyard, true));
 				mustUndeployCoyard = null;
 
@@ -623,6 +731,11 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			if (activeMCVs.Count > 0)
+				return;
+
+			// Only move an existing conyard when explicitly requested by the base building logic.
+			// Otherwise, prefer expanding by building new MCVs (safer, and avoids "wandering conyard" failure modes).
+			if (!undeployEvenNoBase)
 				return;
 
 			var conyards = constructionYards.Actors
@@ -637,64 +750,116 @@ namespace OpenRA.Mods.Common.Traits
 
 			var conyardslist = conyards.ToList();
 
-			if (conyardslist.Count > 1 || undeployEvenNoBase)
+			// Never undeploy the last conyard on expansion nudges.
+			if (conyardslist.Count <= 1)
 			{
-				// We don't want to interrupt refinery production, otherwise it may cause a dead loop of deploy/undeploy.
-				var movableMCV = conyardslist.FirstOrDefault(a => !a.TraitsImplementing<ProductionQueue>()
-				.Any(t => t.Enabled && t.AllQueued().Any(q => resourceMapModule.Info.RefineryTypes.Contains(q.Item))));
-
-				if (movableMCV != null)
-					bot.QueueOrder(new Order("DeployTransform", movableMCV, true));
-
 				undeployEvenNoBase = false;
+				return;
 			}
+
+			// We don't want to interrupt refinery production, otherwise it may cause a dead loop of deploy/undeploy.
+			var movableMCV = conyardslist.FirstOrDefault(a => !a.TraitsImplementing<ProductionQueue>()
+			.Any(t => t.Enabled && t.AllQueued().Any(q => resourceMapModule.Info.RefineryTypes.Contains(q.Item))));
+
+			if (movableMCV != null)
+				bot.QueueOrder(new Order("DeployTransform", movableMCV, true));
+
+			undeployEvenNoBase = false;
 		}
 
 		// Find any MCV and deploy them at a sensible location.
 		void DeployMcv(IBot bot, Actor mcv, bool move)
 		{
-			CPos? desiredLocation = null;
 			var transformsInfo = mcv.Info.TraitInfo<TransformsInfo>();
 			var actorInfo = world.Map.Rules.Actors[transformsInfo.IntoActor];
 			var bi = actorInfo.TraitInfoOrDefault<BuildingInfo>();
 			if (bi == null)
 				return;
 
-			if (move)
+			bool TryDeployAtCurrentLocation(out bool blockersCleared)
 			{
-				var (deployLocation, resLoc, checkloc) = ChooseMcvDeployLocation(mcv, actorInfo, bi, transformsInfo.Offset, allowfallback);
-				allowfallback = true;
-				desiredLocation = deployLocation;
-				if (desiredLocation == null)
-					return;
-
-				activeMCVs[mcv] = checkloc;
-				if (resLoc != null)
+				blockersCleared = false;
+				var topLeft = mcv.Location + transformsInfo.Offset;
+				if (world.CanPlaceBuilding(topLeft, actorInfo, bi, mcv))
 				{
-					foreach (var srp in suggestRefineryProduction)
-						srp.RequestLocation(resLoc.Value, desiredLocation.Value, mcv);
+					// Deploy immediately (non-queued): allows the transforms trait to clear blockers if needed.
+					bot.QueueOrder(new Order("DeployTransform", mcv, false));
+
+					foreach (var n in notifyPositionsUpdated)
+					{
+						n.UpdatedBaseCenter(mcv.Location);
+						n.UpdatedDefenseCenter(mcv.Location);
+					}
+
+					// Clear any state now that we're committed to deploying.
+					activeMCVs.Remove(mcv);
+					mcvDeployLocations.Remove(mcv);
+					return true;
 				}
 
-				bot.QueueOrder(new Order("Move", mcv, Target.FromCell(world, desiredLocation.Value), true));
+				// If we can't deploy because we're blocked by our own idle units, clear them and retry next scan.
+				foreach (var order in AIUtils.ClearBlockersOrders(bi.Tiles(topLeft).ToList(), player, mcv))
+				{
+					world.IssueOrder(order);
+					blockersCleared = true;
+				}
+
+				return false;
 			}
-			else
+
+			// No movement allowed (e.g. initial tick or attack response): only try to deploy where we are.
+			if (!move)
 			{
-				if (!world.CanPlaceBuilding(mcv.Location + transformsInfo.Offset, actorInfo, bi, mcv))
-					return;
-				desiredLocation = mcv.Location;
+				TryDeployAtCurrentLocation(out _);
+				return;
 			}
 
-			bot.QueueOrder(new Order("DeployTransform", mcv, true));
+			// If we already picked a deployment location, then keep moving towards it.
+			// Once we're there (or close enough) then attempt to deploy.
+			if (mcvDeployLocations.TryGetValue(mcv, out var targetDeployLocation))
+			{
+				var distanceSq = (mcv.Location - targetDeployLocation).LengthSquared;
+				if (distanceSq <= 1)
+				{
+					var deployed = TryDeployAtCurrentLocation(out var blockersCleared);
+					if (deployed || blockersCleared)
+						return;
 
-			// When we don't have a construction yard, we notify the new location to other traits for defence,
-			// If not, we only notify sometimes, because we are not sure if mcv can successfully deploy at the desired location.
-			// TODO: This could be addressed via INotifyTransform.
-			if (constructionYards.Actors.All(a => a.IsDead) || world.LocalRandom.Next(2) > 0)
+					// Deployment failed for non-blocker reasons (terrain/resources/etc). Abandon the target and replan.
+					mcvDeployLocations.Remove(mcv);
+					activeMCVs.Remove(mcv);
+				}
+				else
+				{
+					bot.QueueOrder(new Order("Move", mcv, Target.FromCell(world, targetDeployLocation), true));
+					return;
+				}
+			}
+
+			var (plannedDeployLocation, resLoc, checkloc) = ChooseMcvDeployLocation(mcv, actorInfo, bi, transformsInfo.Offset, allowfallback);
+			allowfallback = true;
+			if (plannedDeployLocation == null)
+				return;
+
+			var desiredLocation = plannedDeployLocation.Value;
+			mcvDeployLocations[mcv] = desiredLocation;
+			activeMCVs[mcv] = checkloc;
+			if (resLoc.HasValue)
+			{
+				foreach (var srp in suggestRefineryProduction)
+					srp.RequestLocation(resLoc.Value, desiredLocation, mcv);
+			}
+
+			bot.QueueOrder(new Order("Move", mcv, Target.FromCell(world, desiredLocation), true));
+
+			// Only update base/defense centers pre-emptively if we currently have no conyard.
+			// Otherwise this can cause build placement failures while the MCV is still travelling.
+			if (constructionYards.Actors.All(a => a.IsDead))
 			{
 				foreach (var n in notifyPositionsUpdated)
 				{
-					n.UpdatedBaseCenter(desiredLocation.Value);
-					n.UpdatedDefenseCenter(desiredLocation.Value);
+					n.UpdatedBaseCenter(desiredLocation);
+					n.UpdatedDefenseCenter(desiredLocation);
 				}
 			}
 		}
@@ -817,8 +982,47 @@ namespace OpenRA.Mods.Common.Traits
 
 		void IBotBaseExpansion.UpdateExpansionParams(IBot bot, bool fallback, bool undeployEvenNoBase, Actor mustUndeploy)
 		{
-			moveConyardInterval = 20; // allow some order latency
 			allowfallback = fallback;
+			mustUndeployCoyard = mustUndeploy;
+
+			// Never pack existing conyards: treat "stuck" nudges as a request to expand by building another MCV instead.
+			if (Info.NeverUndeployConyards && mustUndeploy != null)
+			{
+				BuildMCV(bot);
+				buildMCVInterval = 1;
+				this.undeployEvenNoBase = false;
+				mustUndeployCoyard = null;
+				return;
+			}
+
+			var conyardCount = AIUtils.CountActorByCommonName(constructionYards);
+
+			// Prefer expanding by building new MCVs instead of moving existing conyards when possible.
+			if (mustUndeploy == null && undeployEvenNoBase)
+			{
+				BuildMCV(bot);
+				buildMCVInterval = 1;
+				this.undeployEvenNoBase = false;
+				return;
+			}
+
+			// Avoid packing the last conyard. This is too risky and can permanently kill the bot's base building.
+			if (conyardCount <= 1)
+			{
+				this.undeployEvenNoBase = false;
+
+				// If we're trying to expand but only have one conyard, try to build a new MCV instead.
+				if (mustUndeploy == null)
+				{
+					BuildMCV(bot);
+					buildMCVInterval = 1;
+				}
+
+				mustUndeployCoyard = null;
+				return;
+			}
+
+			moveConyardInterval = 20; // allow some order latency
 			this.undeployEvenNoBase = undeployEvenNoBase;
 		}
 	}
